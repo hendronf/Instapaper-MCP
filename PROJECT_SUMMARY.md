@@ -197,12 +197,6 @@ sync to your Kindle automatically."
 3. Move articles into organized folders
 4. Archive old/read content
 
-### Blog Writing (for fearghal.co.uk)
-1. Research topic in Instapaper
-2. Claude synthesizes insights from multiple articles
-3. Draft blog post informed by research
-4. Save draft to Instapaper for review on Kindle
-
 ### UX Design Work
 1. Save design articles and research to topic-specific folders
 2. Reference during projects: "What do my saved articles say about [topic]?"

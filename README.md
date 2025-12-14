@@ -253,9 +253,6 @@ Since you run a blog, you could:
 3. Track reading progress on long reports
 4. Highlight key insights for later reference
 
-### Montessori Commons Integration
-
-Save educational articles and have Claude help organize and synthesize teaching resources.
 
 ## Security Notes
 
