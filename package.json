@@ -1,0 +1,33 @@
+{
+  "name": "instapaper-mcp-server",
+  "version": "1.0.0",
+  "description": "A comprehensive MCP server for Instapaper integration",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "instapaper-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "watch": "tsc --watch",
+    "prepare": "npm run build",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "oauth-1.0a": "^2.2.6",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "mcp",
+    "instapaper",
+    "model-context-protocol"
+  ],
+  "author": "",
+  "license": "MIT"
+}
