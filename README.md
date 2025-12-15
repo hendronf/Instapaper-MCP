@@ -8,6 +8,7 @@ A comprehensive Model Context Protocol (MCP) server for Instapaper integration. 
 
 **Content Management:**
 - `add_bookmark` - Save articles with title, description, and folder
+- `add_private_bookmark` - Save private content without URLs (emails, notes, generated content)
 - `delete_bookmark` - Remove articles
 - `archive_bookmark` - Move articles to archive
 - `unarchive_bookmark` - Restore from archive
@@ -59,6 +60,7 @@ A comprehensive Model Context Protocol (MCP) server for Instapaper integration. 
 - `research_synthesis` - Synthesize insights from articles on a topic
 - `organize_backlog` - Suggest folder organization
 - `archive_candidates` - Identify old articles to archive
+- `save_as_private_bookmark` - Guidelines for saving private content and generated insights
 
 ## Installation
 
