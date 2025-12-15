@@ -1,2 +1,31 @@
-/.env
-/.DS_Store
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Node.js
+node_modules/
+npm-debug.log
+npm-error.log
+yarn-error.log
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.sublime-*
+
+# Archives
+instapaper-mcp-server.tar.gz
+*.zip
+
+# Build (optional - comment out if you want to include compiled files)
+# build/

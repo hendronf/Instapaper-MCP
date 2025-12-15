@@ -29,6 +29,10 @@ A comprehensive Model Context Protocol (MCP) server for Instapaper integration. 
 **Search:**
 - `search_bookmarks` - Find articles by title, URL, or description
 
+**Content Access:**
+- `get_article_content` - Fetch full text of a single article
+- `get_articles_content_bulk` - Fetch content from multiple articles at once for bulk analysis
+
 ### 📚 Resources (Data Claude Can Read)
 
 - `instapaper://bookmarks/unread` - All unread articles
@@ -236,6 +240,16 @@ Claude will use the `instapaper://article/{bookmark_id}` resource to access the 
 "Show me all my highlights from the article about design systems"
 ```
 
+### Bulk Content Analysis
+
+```
+"Get the content from bookmarks 123, 124, and 125 and identify common themes"
+
+"Fetch all articles in my 'AI Research' folder and analyze them for recent developments"
+```
+
+The bulk content tool fetches multiple articles in parallel for faster processing.
+
 ## Integration Ideas
 
 ### With Your Ghost Blog
@@ -276,6 +290,12 @@ Contributions welcome! Please feel free to submit issues or pull requests.
 - [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 
 ## Changelog
+
+### v1.1.0 (Latest)
+- Added `get_article_content` tool for fetching individual article text
+- Added `get_articles_content_bulk` tool for bulk article content retrieval
+- Enhanced parallel processing for better performance
+- Improved error handling in bulk operations
 
 ### v1.0.0
 - Initial release

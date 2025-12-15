@@ -289,6 +289,38 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     required: ['query'],
                 },
             },
+            // Content Access
+            {
+                name: 'get_article_content',
+                description: 'Get the full text content of an article',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        bookmark_id: {
+                            type: 'number',
+                            description: 'ID of the bookmark to fetch content for',
+                        },
+                    },
+                    required: ['bookmark_id'],
+                },
+            },
+            {
+                name: 'get_articles_content_bulk',
+                description: 'Get the full text content of multiple articles at once for bulk data lookup',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        bookmark_ids: {
+                            type: 'array',
+                            items: {
+                                type: 'number',
+                            },
+                            description: 'Array of bookmark IDs to fetch content for',
+                        },
+                    },
+                    required: ['bookmark_ids'],
+                },
+            },
         ],
     };
 });
@@ -478,6 +510,47 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                 query: typedArgs.query,
                                 results: filtered.length,
                                 bookmarks: filtered,
+                            }, null, 2),
+                        },
+                    ],
+                };
+            }
+            case 'get_article_content': {
+                const content = await client.getArticleText(typedArgs.bookmark_id);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: content,
+                        },
+                    ],
+                };
+            }
+            case 'get_articles_content_bulk': {
+                const bookmarkIds = typedArgs.bookmark_ids;
+                const results = {};
+                // Fetch articles in parallel for better performance
+                const promises = bookmarkIds.map(async (id) => {
+                    try {
+                        const content = await client.getArticleText(id);
+                        results[id] = { content };
+                    }
+                    catch (error) {
+                        results[id] = {
+                            error: error instanceof Error ? error.message : 'Unknown error',
+                        };
+                    }
+                });
+                await Promise.all(promises);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                total: bookmarkIds.length,
+                                fetched: Object.values(results).filter((r) => 'content' in r).length,
+                                failed: Object.values(results).filter((r) => 'error' in r).length,
+                                articles: results,
                             }, null, 2),
                         },
                     ],
