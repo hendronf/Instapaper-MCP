@@ -55,14 +55,109 @@ const server = new Server(
 
 /**
  * TOOLS - Actions Claude can take
+ * Organized by frequency of use for optimal LLM discovery
  */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
-      // Content Management
+      // ========== DISCOVERY & READING (Most Frequently Used) ==========
+      {
+        name: 'list_bookmarks',
+        description: 'List bookmarks from a specific folder or search results. Retrieve unread, archived, or starred articles with optional limit. This is the primary way to browse your reading list. Supports filtering by folder, limit, and sync parameters for efficient bulk data retrieval.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            folder: {
+              type: 'string',
+              description: 'Folder to list from: "unread" (default), "archive", "starred", or a folder_id',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of bookmarks to return (1-500, default 25)',
+              minimum: 1,
+              maximum: 500,
+            },
+            have: {
+              type: 'string',
+              description: 'Optional: comma-separated bookmark IDs you already have for sync optimization',
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'search_bookmarks',
+        description: 'Find bookmarks by searching through titles, URLs, and descriptions. Supports optional filtering by folder (use "unread", "archive", "starred", or a specific folder_id) and result limits. Useful for discovering articles on specific topics or finding previously saved content.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query',
+            },
+            folder: {
+              type: 'string',
+              description: 'Optional folder to search in (unread, archive, starred, or folder_id)',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of results (default 25)',
+              default: 25,
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'get_article_content',
+        description: 'Retrieve the complete text content of a single article. Use this to analyze, summarize, or process the full article text. Requires a bookmark ID. Returns the article as plain text.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_id: {
+              type: 'number',
+              description: 'ID of the bookmark to fetch content for',
+            },
+          },
+          required: ['bookmark_id'],
+        },
+      },
+      {
+        name: 'get_articles_content_bulk',
+        description: 'Fetch the complete text of multiple articles simultaneously for efficient bulk analysis. Provide an array of bookmark IDs. Articles are retrieved in parallel for best performance. Each article is returned with its ID, content, or error status. Ideal for synthesizing information across multiple sources, comparing perspectives, or comprehensive research analysis.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_ids: {
+              type: 'array',
+              items: {
+                type: 'number',
+              },
+              description: 'Array of bookmark IDs to fetch content for',
+            },
+          },
+          required: ['bookmark_ids'],
+        },
+      },
+      {
+        name: 'list_highlights',
+        description: 'Retrieve all highlights/excerpts saved from a specific article. Shows all the important passages you have highlighted in that bookmark, useful for reviewing key points and important takeaways.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_id: {
+              type: 'number',
+              description: 'ID of the bookmark',
+            },
+          },
+          required: ['bookmark_id'],
+        },
+      },
+
+      // ========== QUICK ACTIONS (Frequently Used) ==========
       {
         name: 'add_bookmark',
-        description: 'Add a new bookmark to Instapaper',
+        description: 'Save an article or web page to Instapaper. Use this when the user wants to save a URL for later reading. Returns the bookmark ID, title, and URL. You can optionally provide a title, description/notes, and a folder ID to organize the article.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -87,50 +182,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'delete_bookmark',
-        description: 'Delete a bookmark from Instapaper',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            bookmark_id: {
-              type: 'number',
-              description: 'ID of the bookmark to delete',
-            },
-          },
-          required: ['bookmark_id'],
-        },
-      },
-      {
-        name: 'archive_bookmark',
-        description: 'Archive a bookmark (move to archive)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            bookmark_id: {
-              type: 'number',
-              description: 'ID of the bookmark to archive',
-            },
-          },
-          required: ['bookmark_id'],
-        },
-      },
-      {
-        name: 'unarchive_bookmark',
-        description: 'Unarchive a bookmark (move back to unread)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            bookmark_id: {
-              type: 'number',
-              description: 'ID of the bookmark to unarchive',
-            },
-          },
-          required: ['bookmark_id'],
-        },
-      },
-      {
         name: 'star_bookmark',
-        description: 'Star a bookmark (mark as important)',
+        description: 'Mark a bookmark as starred/important. Starring articles highlights them in your Instapaper library and helps you track your favorite or most valuable reads.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -144,7 +197,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'unstar_bookmark',
-        description: 'Remove star from a bookmark',
+        description: 'Remove the star from a bookmark. Use this when an article is no longer a favorite or needs to be deprioritized in your library.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -157,8 +210,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'archive_bookmark',
+        description: 'Move a bookmark to the archive. Archiving removes articles from your unread queue without deleting them, useful for marking articles as done or temporarily hiding them. The bookmark can be unarchived later.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_id: {
+              type: 'number',
+              description: 'ID of the bookmark to archive',
+            },
+          },
+          required: ['bookmark_id'],
+        },
+      },
+      {
+        name: 'unarchive_bookmark',
+        description: 'Restore a bookmark from the archive back to your unread list. Use this to bring back articles you want to read or reconsider.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_id: {
+              type: 'number',
+              description: 'ID of the bookmark to unarchive',
+            },
+          },
+          required: ['bookmark_id'],
+        },
+      },
+      {
         name: 'move_bookmark',
-        description: 'Move a bookmark to a different folder',
+        description: 'Organize a bookmark by moving it to a specific folder. Use this to categorize articles (e.g., move research articles to a "UX Research" folder). Requires both the bookmark ID and target folder ID.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -175,14 +256,106 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'update_read_progress',
-        description: 'Update reading progress for a bookmark (0.0 to 1.0)',
+        name: 'move_bookmarks_bulk',
+        description: 'Move multiple bookmarks to the same folder in parallel. While Instapaper API only supports single moves, this tool batches them efficiently using parallel requests. Ideal for organizing large sets of articles after search or bulk discovery. Returns success count and any failures.',
         inputSchema: {
           type: 'object',
           properties: {
-            bookmark_id: {
+            bookmark_ids: {
+              type: 'array',
+              items: {
+                type: 'number',
+              },
+              description: 'Array of bookmark IDs to move',
+            },
+            folder_id: {
               type: 'number',
-              description: 'ID of the bookmark',
+              description: 'ID of the destination folder for all bookmarks',
+            },
+          },
+          required: ['bookmark_ids', 'folder_id'],
+        },
+      },
+      {
+        name: 'star_bookmarks_bulk',
+        description: 'Mark multiple bookmarks as starred in parallel. Use this to quickly highlight a set of important articles you want to track or prioritize. Returns success count and any failures.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_ids: {
+              type: 'array',
+              items: {
+                type: 'number',
+              },
+              description: 'Array of bookmark IDs to star',
+            },
+          },
+          required: ['bookmark_ids'],
+        },
+      },
+      {
+        name: 'unstar_bookmarks_bulk',
+        description: 'Remove stars from multiple bookmarks in parallel. Use this to deprioritize a group of articles at once. Returns success count and any failures.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_ids: {
+              type: 'array',
+              items: {
+                type: 'number',
+              },
+              description: 'Array of bookmark IDs to unstar',
+            },
+          },
+          required: ['bookmark_ids'],
+        },
+      },
+      {
+        name: 'archive_bookmarks_bulk',
+        description: 'Move multiple bookmarks to archive in parallel. Use this to quickly mark a set of articles as done or hide them from your unread queue. Returns success count and any failures.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_ids: {
+              type: 'array',
+              items: {
+                type: 'number',
+              },
+              description: 'Array of bookmark IDs to archive',
+            },
+          },
+          required: ['bookmark_ids'],
+        },
+      },
+      {
+        name: 'unarchive_bookmarks_bulk',
+        description: 'Restore multiple bookmarks from archive in parallel. Use this to bring back a group of articles to your unread list. Returns success count and any failures.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_ids: {
+              type: 'array',
+              items: {
+                type: 'number',
+              },
+              description: 'Array of bookmark IDs to unarchive',
+            },
+          },
+          required: ['bookmark_ids'],
+        },
+      },
+      {
+        name: 'update_read_progress_bulk',
+        description: 'Update reading progress for multiple bookmarks in parallel. Useful for batch-updating progress on a set of related articles or bulk-marking articles as read. Progress ranges from 0.0 (not started) to 1.0 (finished). Returns success count and any failures.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bookmark_ids: {
+              type: 'array',
+              items: {
+                type: 'number',
+              },
+              description: 'Array of bookmark IDs to update',
             },
             progress: {
               type: 'number',
@@ -191,13 +364,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               maximum: 1,
             },
           },
-          required: ['bookmark_id', 'progress'],
+          required: ['bookmark_ids', 'progress'],
         },
       },
-      // Folder Management
+
+      // ========== FOLDER MANAGEMENT ==========
       {
         name: 'list_folders',
-        description: 'List all folders in your Instapaper account',
+        description: 'Retrieve all folders in your Instapaper account. This shows custom folders you have created for organizing articles. Returns folder names, IDs, and positions.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -205,7 +379,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'create_folder',
-        description: 'Create a new folder',
+        description: 'Create a new folder for organizing bookmarks. Provide a folder name/title. Folders help categorize articles by topic, project, or any organizational system you prefer.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -219,7 +393,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'delete_folder',
-        description: 'Delete a folder (bookmarks will move to unread)',
+        description: 'Remove a folder from your Instapaper account. When a folder is deleted, all bookmarks in it are automatically moved to the unread section. Use this to clean up unused folders.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -231,10 +405,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['folder_id'],
         },
       },
-      // Highlights
+      {
+        name: 'reorder_folders',
+        description: 'Reorder your folders in a custom sequence. Provide an array of folder IDs with their desired positions. This helps organize your folder structure for better workflow.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            folder_order: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  folder_id: {
+                    type: 'number',
+                    description: 'The folder ID',
+                  },
+                  position: {
+                    type: 'number',
+                    description: 'The desired position (1 = first)',
+                  },
+                },
+                required: ['folder_id', 'position'],
+              },
+              description: 'Array of folder ID and position pairs',
+            },
+          },
+          required: ['folder_order'],
+        },
+      },
+
+      // ========== HIGHLIGHTS MANAGEMENT ==========
       {
         name: 'add_highlight',
-        description: 'Add a highlight to a bookmark',
+        description: 'Add a highlight (excerpt) to an article. Specify the text to highlight and its position in the article. Use this to mark important passages, quotes, or key insights for later reference.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -255,22 +458,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'list_highlights',
-        description: 'List all highlights for a bookmark',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            bookmark_id: {
-              type: 'number',
-              description: 'ID of the bookmark',
-            },
-          },
-          required: ['bookmark_id'],
-        },
-      },
-      {
         name: 'delete_highlight',
-        description: 'Delete a highlight',
+        description: 'Remove a specific highlight from an article. Use this to clean up highlights or remove excerpts you no longer need.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -282,60 +471,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['highlight_id'],
         },
       },
-      // Search and Discovery
+
+      // ========== ADVANCED OPERATIONS ==========
       {
-        name: 'search_bookmarks',
-        description: 'Search bookmarks by title or URL',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Search query',
-            },
-            folder: {
-              type: 'string',
-              description: 'Optional folder to search in (unread, archive, starred, or folder_id)',
-            },
-            limit: {
-              type: 'number',
-              description: 'Maximum number of results (default 25)',
-              default: 25,
-            },
-          },
-          required: ['query'],
-        },
-      },
-      // Content Access
-      {
-        name: 'get_article_content',
-        description: 'Get the full text content of an article',
+        name: 'update_read_progress',
+        description: 'Track reading progress on a bookmark. Provide a progress value between 0.0 (not started) and 1.0 (finished). Useful for tracking where you left off in long articles or research papers.',
         inputSchema: {
           type: 'object',
           properties: {
             bookmark_id: {
               type: 'number',
-              description: 'ID of the bookmark to fetch content for',
+              description: 'ID of the bookmark',
+            },
+            progress: {
+              type: 'number',
+              description: 'Reading progress as a decimal (0.0 = not started, 1.0 = finished)',
+              minimum: 0,
+              maximum: 1,
             },
           },
-          required: ['bookmark_id'],
+          required: ['bookmark_id', 'progress'],
         },
       },
       {
-        name: 'get_articles_content_bulk',
-        description: 'Get the full text content of multiple articles at once for bulk data lookup',
+        name: 'delete_bookmark',
+        description: 'Permanently remove a bookmark from Instapaper. This action cannot be undone. Use this when the user wants to delete an article they no longer need.',
         inputSchema: {
           type: 'object',
           properties: {
-            bookmark_ids: {
-              type: 'array',
-              items: {
-                type: 'number',
-              },
-              description: 'Array of bookmark IDs to fetch content for',
+            bookmark_id: {
+              type: 'number',
+              description: 'ID of the bookmark to delete',
             },
           },
-          required: ['bookmark_ids'],
+          required: ['bookmark_id'],
         },
       },
     ],
@@ -348,6 +517,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const typedArgs = args as Record<string, unknown>;
 
     switch (name) {
+      case 'list_bookmarks': {
+        const bookmarks = await client.listBookmarks({
+          folder: typedArgs.folder as string | undefined,
+          limit: (typedArgs.limit as number) || 25,
+          have: typedArgs.have as string | undefined,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  total: bookmarks.length,
+                  bookmarks,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
       case 'add_bookmark': {
         const bookmark = await client.addBookmark(typedArgs.url as string, {
           title: typedArgs.title as string | undefined,
@@ -441,6 +633,232 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'move_bookmarks_bulk': {
+        const bookmarkIds = typedArgs.bookmark_ids as number[];
+        const folderId = typedArgs.folder_id as number;
+        const results: Record<number, { success: boolean } | { error: string }> = {};
+
+        // Move bookmarks in parallel
+        const promises = bookmarkIds.map(async (id) => {
+          try {
+            await client.moveBookmark(id, folderId);
+            results[id] = { success: true };
+          } catch (error) {
+            results[id] = {
+              error: error instanceof Error ? error.message : 'Unknown error',
+            };
+          }
+        });
+
+        await Promise.all(promises);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  total: bookmarkIds.length,
+                  moved: Object.values(results).filter((r) => 'success' in r).length,
+                  failed: Object.values(results).filter((r) => 'error' in r).length,
+                  folder_id: folderId,
+                  results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case 'star_bookmarks_bulk': {
+        const bookmarkIds = typedArgs.bookmark_ids as number[];
+        const results: Record<number, { success: boolean } | { error: string }> = {};
+
+        // Star bookmarks in parallel
+        const promises = bookmarkIds.map(async (id) => {
+          try {
+            await client.starBookmark(id);
+            results[id] = { success: true };
+          } catch (error) {
+            results[id] = {
+              error: error instanceof Error ? error.message : 'Unknown error',
+            };
+          }
+        });
+
+        await Promise.all(promises);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  total: bookmarkIds.length,
+                  starred: Object.values(results).filter((r) => 'success' in r).length,
+                  failed: Object.values(results).filter((r) => 'error' in r).length,
+                  results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case 'unstar_bookmarks_bulk': {
+        const bookmarkIds = typedArgs.bookmark_ids as number[];
+        const results: Record<number, { success: boolean } | { error: string }> = {};
+
+        // Unstar bookmarks in parallel
+        const promises = bookmarkIds.map(async (id) => {
+          try {
+            await client.unstarBookmark(id);
+            results[id] = { success: true };
+          } catch (error) {
+            results[id] = {
+              error: error instanceof Error ? error.message : 'Unknown error',
+            };
+          }
+        });
+
+        await Promise.all(promises);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  total: bookmarkIds.length,
+                  unstarred: Object.values(results).filter((r) => 'success' in r).length,
+                  failed: Object.values(results).filter((r) => 'error' in r).length,
+                  results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case 'archive_bookmarks_bulk': {
+        const bookmarkIds = typedArgs.bookmark_ids as number[];
+        const results: Record<number, { success: boolean } | { error: string }> = {};
+
+        // Archive bookmarks in parallel
+        const promises = bookmarkIds.map(async (id) => {
+          try {
+            await client.archiveBookmark(id);
+            results[id] = { success: true };
+          } catch (error) {
+            results[id] = {
+              error: error instanceof Error ? error.message : 'Unknown error',
+            };
+          }
+        });
+
+        await Promise.all(promises);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  total: bookmarkIds.length,
+                  archived: Object.values(results).filter((r) => 'success' in r).length,
+                  failed: Object.values(results).filter((r) => 'error' in r).length,
+                  results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case 'unarchive_bookmarks_bulk': {
+        const bookmarkIds = typedArgs.bookmark_ids as number[];
+        const results: Record<number, { success: boolean } | { error: string }> = {};
+
+        // Unarchive bookmarks in parallel
+        const promises = bookmarkIds.map(async (id) => {
+          try {
+            await client.unarchiveBookmark(id);
+            results[id] = { success: true };
+          } catch (error) {
+            results[id] = {
+              error: error instanceof Error ? error.message : 'Unknown error',
+            };
+          }
+        });
+
+        await Promise.all(promises);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  total: bookmarkIds.length,
+                  unarchived: Object.values(results).filter((r) => 'success' in r).length,
+                  failed: Object.values(results).filter((r) => 'error' in r).length,
+                  results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case 'update_read_progress_bulk': {
+        const bookmarkIds = typedArgs.bookmark_ids as number[];
+        const progress = typedArgs.progress as number;
+        const results: Record<number, { success: boolean } | { error: string }> = {};
+
+        // Update progress for bookmarks in parallel
+        const promises = bookmarkIds.map(async (id) => {
+          try {
+            await client.updateReadProgress(id, progress);
+            results[id] = { success: true };
+          } catch (error) {
+            results[id] = {
+              error: error instanceof Error ? error.message : 'Unknown error',
+            };
+          }
+        });
+
+        await Promise.all(promises);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  total: bookmarkIds.length,
+                  updated: Object.values(results).filter((r) => 'success' in r).length,
+                  failed: Object.values(results).filter((r) => 'error' in r).length,
+                  progress,
+                  results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
       case 'update_read_progress': {
         const bookmark = await client.updateReadProgress(typedArgs.bookmark_id as number, typedArgs.progress as number);
         return {
@@ -484,6 +902,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify({ success: true, message: 'Folder deleted' }),
+            },
+          ],
+        };
+      }
+
+      case 'reorder_folders': {
+        const folderOrder = typedArgs.folder_order as Array<{ folder_id: number; position: number }>;
+        const folders = await client.reorderFolders(folderOrder);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ success: true, folders }, null, 2),
             },
           ],
         };

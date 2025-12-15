@@ -274,6 +274,17 @@ export class InstapaperClient {
   }
 
   /**
+   * Reorder folders
+   */
+  async reorderFolders(order: Array<{ folder_id: number; position: number }>): Promise<Folder[]> {
+    const orderString = order.map(item => `${item.folder_id}:${item.position}`).join(',');
+    const params = new URLSearchParams({ order: orderString });
+
+    const response = await this.makeAuthenticatedRequest('/folders/set_order', params);
+    return response;
+  }
+
+  /**
    * List highlights for a bookmark
    */
   async listHighlights(bookmarkId: number): Promise<Highlight[]> {

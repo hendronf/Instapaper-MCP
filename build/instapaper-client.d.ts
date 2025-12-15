@@ -106,6 +106,13 @@ export declare class InstapaperClient {
      */
     deleteFolder(folderId: number): Promise<void>;
     /**
+     * Reorder folders
+     */
+    reorderFolders(order: Array<{
+        folder_id: number;
+        position: number;
+    }>): Promise<Folder[]>;
+    /**
      * List highlights for a bookmark
      */
     listHighlights(bookmarkId: number): Promise<Highlight[]>;

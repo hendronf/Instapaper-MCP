@@ -16,17 +16,27 @@ A comprehensive Model Context Protocol (MCP) server for Instapaper integration. 
 - `move_bookmark` - Organize into folders
 - `update_read_progress` - Track reading progress
 
+**Bulk Operations (Parallel Processing):**
+- `move_bookmarks_bulk` - Move multiple bookmarks to a folder at once
+- `star_bookmarks_bulk` - Star multiple bookmarks in parallel
+- `unstar_bookmarks_bulk` - Remove stars from multiple bookmarks
+- `archive_bookmarks_bulk` - Archive multiple bookmarks at once
+- `unarchive_bookmarks_bulk` - Restore multiple bookmarks from archive
+- `update_read_progress_bulk` - Update reading progress for multiple articles
+
 **Folder Management:**
 - `list_folders` - View all folders
 - `create_folder` - Create new folders
 - `delete_folder` - Remove folders
+- `reorder_folders` - Customize folder order
 
 **Highlights:**
 - `add_highlight` - Save important passages
 - `list_highlights` - View highlights for an article
 - `delete_highlight` - Remove highlights
 
-**Search:**
+**Search & Discovery:**
+- `list_bookmarks` - List articles from folders with sync support
 - `search_bookmarks` - Find articles by title, URL, or description
 
 **Content Access:**
@@ -128,44 +138,134 @@ After updating the config, restart Claude Desktop completely (quit and reopen).
 
 ## Example Usage
 
-Once configured, you can interact with Instapaper through Claude:
+Once configured, you can interact with Instapaper through Claude. Here are real-world examples showing what happens when you make requests:
 
-### Save Articles
+### Example 1: Organize Recent Bookmarks by Topic
 
+**You ask Claude:**
 ```
-"Save this article to Instapaper: https://example.com/article
-Title: Great UX Patterns
-Description: Research on mobile navigation patterns"
-```
-
-### Organize Your Reading
-
-```
-"What's in my unread Instapaper queue?"
-
-"Create a folder called 'UX Research' and move all articles about user research into it"
+"Organize my recent bookmarks by topic"
 ```
 
-### Research Workflows
+**Claude's workflow:**
+1. Fetches your unread bookmarks using `list_bookmarks`
+2. Analyzes the titles and URLs to identify topics (e.g., "AI/ML", "Design", "Product Management")
+3. Creates new folders for each topic using `create_folder`
+4. Gets the bookmark IDs for articles in each category
+5. Uses `move_bookmarks_bulk` to organize them all at once
 
+**You see:**
 ```
-"Find all my Instapaper articles about AI in design and create a synthesis of the key insights"
+✓ Fetched 47 unread bookmarks
+✓ Identified topics: AI & Machine Learning (12), UX Design (15), Product Strategy (11), Other (9)
+✓ Created folders: "AI & ML", "UX Design", "Product Strategy"
+✓ Moved 38 bookmarks to topic folders:
+  - AI & ML: 12 moved
+  - UX Design: 15 moved  
+  - Product Strategy: 11 moved
 
-"What should I read next based on my starred articles?"
+Your bookmarks are now organized by topic!
 ```
 
-### Analysis
+### Example 2: Review Top Articles and Sync Across Devices
 
+**You ask Claude:**
 ```
-"Analyze my reading patterns - what topics am I saving most?"
-
-"Give me a weekly digest of my unread articles, organized by topic"
+"Show me my starred articles and mark the most interesting ones as fully read"
 ```
 
-### Content Pipeline
+**Claude's workflow:**
+1. Fetches starred bookmarks using `list_bookmarks` with `folder: "starred"`
+2. Retrieves full article text for your starred items using `get_articles_content_bulk`
+3. Analyzes the content and identifies the most compelling articles
+4. Updates reading progress for selected articles using `update_read_progress_bulk`
 
+**You see:**
 ```
-"I just finished analyzing this design challenge. Save a summary to Instapaper so I can read it on my Kindle later."
+✓ Found 24 starred articles
+✓ Fetched full text from 24 articles in parallel
+✓ Most interesting articles:
+  1. "The Future of Design Systems" - Design patterns at scale
+  2. "Rethinking Product Strategy" - How great teams think about roadmaps
+  3. "AI-Assisted Development" - New tools reshaping engineering
+
+✓ Marked these 3 articles as fully read
+✓ Progress updated across your devices
+```
+
+### Example 3: Batch Process and Archive
+
+**You ask Claude:**
+```
+"Archive all articles older than 3 months that I haven't starred"
+```
+
+**Claude's workflow:**
+1. Lists all unread bookmarks with timestamps
+2. Filters for articles older than 3 months
+3. Excludes any that are starred
+4. Uses `archive_bookmarks_bulk` to move them all to archive
+
+**You see:**
+```
+✓ Analyzed 128 bookmarks
+✓ Found 47 articles older than 3 months, not starred
+✓ Archived 47 bookmarks in parallel:
+  - Successfully archived: 47
+  - Errors: 0
+
+Your queue is now more focused on recent content!
+```
+
+### Example 4: Research Synthesis
+
+**You ask Claude:**
+```
+"Find all my articles about remote work culture and create a summary"
+```
+
+**Claude's workflow:**
+1. Searches bookmarks using `search_bookmarks` for "remote work culture"
+2. Fetches full article content using `get_articles_content_bulk`
+3. Synthesizes key insights from all articles
+4. Optionally stars the most relevant articles using `star_bookmarks_bulk`
+
+**You see:**
+```
+✓ Found 8 articles about remote work culture
+✓ Retrieved full text from all 8 articles
+✓ Analysis: Key themes across your reading:
+  - Asynchronous communication is critical (5/8 articles)
+  - Building trust in distributed teams (6/8 articles)
+  - Time zone management strategies (4/8 articles)
+
+✓ Key takeaways:
+  - Documentation and clarity reduce misunderstandings
+  - Regular 1-on-1s maintain relationships
+  - Async-first mindset improves flexibility
+
+✓ Starred your 3 most-cited articles for reference
+```
+
+### Example 5: Quick Content Pipeline
+
+**You ask Claude:**
+```
+"Save this research summary to Instapaper with the 'AI Research' folder"
+```
+
+**Claude's workflow:**
+1. Saves article using `add_bookmark` to specified folder
+2. Confirms save is complete
+
+**You see:**
+```
+✓ Saved to Instapaper:
+  - Title: "AI Research Summary - Week 48"
+  - Folder: AI Research
+  - Ready to read on any device
+
+The article will sync to your Kindle in a few minutes.
 ```
 
 ## Development
@@ -240,15 +340,32 @@ Claude will use the `instapaper://article/{bookmark_id}` resource to access the 
 "Show me all my highlights from the article about design systems"
 ```
 
-### Bulk Content Analysis
+### Bulk Operations
 
+**Bulk Content Analysis:**
 ```
 "Get the content from bookmarks 123, 124, and 125 and identify common themes"
 
 "Fetch all articles in my 'AI Research' folder and analyze them for recent developments"
 ```
 
-The bulk content tool fetches multiple articles in parallel for faster processing.
+**Bulk Organization:**
+```
+"Move bookmarks 100, 101, 102, and 103 to my 'UX Research' folder"
+
+"Star all the articles I just found about design systems"
+
+"Archive all bookmarks 200-210"
+```
+
+**Bulk Status Updates:**
+```
+"Mark bookmarks 50, 51, and 52 as fully read (progress 1.0)"
+
+"Unarchive my last 10 archived articles"
+```
+
+All bulk operations execute requests in parallel for maximum efficiency and return detailed results including success count, failure count, and per-item status.
 
 ## Integration Ideas
 
@@ -291,7 +408,19 @@ Contributions welcome! Please feel free to submit issues or pull requests.
 
 ## Changelog
 
-### v1.1.0 (Latest)
+### v1.2.0 (Latest)
+- Added 5 new bulk operation tools with parallel processing:
+  - `star_bookmarks_bulk` - Star multiple bookmarks at once
+  - `unstar_bookmarks_bulk` - Remove stars from multiple bookmarks
+  - `archive_bookmarks_bulk` - Archive multiple bookmarks in parallel
+  - `unarchive_bookmarks_bulk` - Restore multiple bookmarks from archive
+  - `update_read_progress_bulk` - Update progress for multiple articles
+- Added `list_bookmarks` tool with advanced filtering and sync support
+- Added `reorder_folders` tool for custom folder organization
+- Enhanced bulk operation documentation with examples
+- All bulk tools provide detailed success/failure statistics
+
+### v1.1.0
 - Added `get_article_content` tool for fetching individual article text
 - Added `get_articles_content_bulk` tool for bulk article content retrieval
 - Enhanced parallel processing for better performance

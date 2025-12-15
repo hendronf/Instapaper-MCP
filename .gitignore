@@ -1,31 +1,148 @@
-# Environment variables
+# ============================================================================
+# SECURITY - Sensitive Information (CRITICAL - Never commit these)
+# ============================================================================
+
+# Environment variables - MUST ALWAYS BE IN .gitignore
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development
+.env*.sh
 
-# OS files
+# Secrets and credentials
+.secrets/
+secrets/
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+oauth_tokens
+credentials.json
+*.crt
+
+# ============================================================================
+# OS & ENVIRONMENT
+# ============================================================================
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+.~
+
+# Editor temporary files
 *.swp
 *.swo
 *~
+*.tmp
+*.bak
+.#*
 
-# Node.js
+# ============================================================================
+# NODE.JS & PACKAGE MANAGEMENT
+# ============================================================================
+
+# Dependencies - node_modules should NOT be committed
 node_modules/
 npm-debug.log
-npm-error.log
+npm-debug.log.*
+yarn-debug.log
 yarn-error.log
-package-lock.json
+pnpm-debug.log
 
-# IDE
+# Lock files (consider committing package-lock.json for reproducible builds)
+# package-lock.json  # Uncomment if you want to exclude this
+
+# Temporary files
+dist/
+.npm
+.eslintcache
+.node_repl_history
+*.tgz
+
+# ============================================================================
+# IDE & EDITOR
+# ============================================================================
+
+# VS Code
 .vscode/
+*.code-workspace
+
+# JetBrains IDEs
 .idea/
 *.iml
+*.iws
+*.ipr
+.gradle
+
+# Sublime Text
 .sublime-*
+.sublime-project
+.sublime-workspace
 
-# Archives
-instapaper-mcp-server.tar.gz
+# Vim
+.vim/
+.swp
+.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================================================
+# BUILD ARTIFACTS & TEMPORARY FILES
+# ============================================================================
+
+# TypeScript
+*.js.map
+*.d.ts.map
+
+# Archives and compressed files
 *.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+instapaper-mcp-server.tar.gz
 
-# Build (optional - comment out if you want to include compiled files)
+# Build outputs (if you want to include build/ in source, comment out next line)
+# Uncomment the next line if you DON'T want to track compiled output
 # build/
+# dist/
+
+# ============================================================================
+# PROJECT SPECIFIC
+# ============================================================================
+
+# Instapaper API test files
+test-*.json
+*.test.env
+
+# Temporary config files
+config.local.json
+local.config.*
+
+# ============================================================================
+# LOGGING & TEMPORARY DATA
+# ============================================================================
+
+*.log
+logs/
+*.pid
+*.seed

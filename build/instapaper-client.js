@@ -194,6 +194,15 @@ export class InstapaperClient {
         await this.makeAuthenticatedRequest('/folders/delete', params);
     }
     /**
+     * Reorder folders
+     */
+    async reorderFolders(order) {
+        const orderString = order.map(item => `${item.folder_id}:${item.position}`).join(',');
+        const params = new URLSearchParams({ order: orderString });
+        const response = await this.makeAuthenticatedRequest('/folders/set_order', params);
+        return response;
+    }
+    /**
      * List highlights for a bookmark
      */
     async listHighlights(bookmarkId) {
