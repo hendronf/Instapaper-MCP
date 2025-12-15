@@ -2,6 +2,9 @@
 
 A comprehensive Model Context Protocol (MCP) server for Instapaper integration. This server allows Claude and other MCP clients to interact with your Instapaper account - reading, saving, organizing, and analyzing your articles.
 
+# Like what you see?
+Buy me a coffee: https://cmdzed.com/#/portal/support
+
 ## Features
 
 ### 🛠️ Tools (Actions)
