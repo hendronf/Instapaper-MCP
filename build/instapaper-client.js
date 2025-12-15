@@ -81,23 +81,34 @@ export class InstapaperClient {
         return response;
     }
     /**
-     * Add a new bookmark
+     * Add a new bookmark (public or private)
+     * For private sources: leave url empty and provide content instead
      */
     async addBookmark(url, options = {}) {
-        const params = new URLSearchParams({ url });
+        const params = new URLSearchParams();
+        // For private sources, url is ignored and content is required
+        if (!options.is_private_from_source) {
+            params.append('url', url);
+        }
         if (options.title)
             params.append('title', options.title);
         if (options.description)
             params.append('description', options.description);
         if (options.folder_id)
             params.append('folder_id', options.folder_id.toString());
-        if (options.resolve_final_url !== undefined) {
+        if (options.resolve_final_url !== undefined && !options.is_private_from_source) {
             params.append('resolve_final_url', options.resolve_final_url ? '1' : '0');
+        }
+        if (options.is_private_from_source) {
+            params.append('is_private_from_source', options.is_private_from_source);
+            if (!options.content) {
+                throw new Error('content parameter is required for private bookmarks');
+            }
+            params.append('content', options.content);
         }
         const response = await this.makeAuthenticatedRequest('/bookmarks/add', params);
         return response[0];
-    }
-    /**
+    } /**
      * Delete a bookmark
      */
     async deleteBookmark(bookmarkId) {
@@ -168,6 +179,17 @@ export class InstapaperClient {
         });
         const response = await this.makeAuthenticatedRequest('/bookmarks/update_read_progress', params);
         return response[0];
+    }
+    /**
+     * Add a private bookmark from HTML content
+     * Use this for content that doesn't have a URL (emails, notebooks, etc)
+     */
+    async addPrivateBookmark(content, options) {
+        return this.addBookmark('', {
+            ...options,
+            content,
+            is_private_from_source: options.source_label,
+        });
     }
     /**
      * List all folders

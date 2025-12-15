@@ -182,6 +182,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'add_private_bookmark',
+        description: 'Save private content without a URL to Instapaper (e.g., from emails, notebooks, clipped text, Slack messages). Private bookmarks are not shared and don\'t have URLs. Perfect for personal notes, clipped content, or information from sources without URLs. Requires HTML content to be provided.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            content: {
+              type: 'string',
+              description: 'HTML content of the private bookmark. Can be plain text or HTML.',
+            },
+            title: {
+              type: 'string',
+              description: 'Optional title for the bookmark',
+            },
+            description: {
+              type: 'string',
+              description: 'Optional description or notes',
+            },
+            source_label: {
+              type: 'string',
+              description: 'Source label for this private bookmark (e.g., "email", "notebook", "slack", "clipped-text")',
+            },
+            folder_id: {
+              type: 'number',
+              description: 'Optional folder ID to save the bookmark in',
+            },
+          },
+          required: ['content', 'source_label'],
+        },
+      },
+      {
         name: 'star_bookmark',
         description: 'Mark a bookmark as starred/important. Starring articles highlights them in your Instapaper library and helps you track your favorite or most valuable reads.',
         inputSchema: {
@@ -555,6 +585,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 bookmark_id: bookmark.bookmark_id,
                 title: bookmark.title,
                 url: bookmark.url,
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'add_private_bookmark': {
+        const bookmark = await client.addPrivateBookmark(typedArgs.content as string, {
+          title: typedArgs.title as string | undefined,
+          description: typedArgs.description as string | undefined,
+          source_label: typedArgs.source_label as string,
+          folder_id: typedArgs.folder_id as number | undefined,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                bookmark_id: bookmark.bookmark_id,
+                title: bookmark.title,
+                private_source: bookmark.private_source,
+                message: 'Private bookmark saved successfully',
               }, null, 2),
             },
           ],
@@ -1219,6 +1272,10 @@ server.setRequestHandler(ListPromptsRequestSchema, async () => {
         name: 'archive_candidates',
         description: 'Identify old unread articles that might be worth archiving',
       },
+      {
+        name: 'save_as_private_bookmark',
+        description: 'Guidelines for saving content to private bookmarks (emails, notes, clipped text, etc.)',
+      },
     ],
   };
 });
@@ -1291,6 +1348,52 @@ server.setRequestHandler(GetPromptRequestSchema, async (request) => {
             content: {
               type: 'text',
               text: 'Identify unread articles that are older than 3 months or seem less relevant now. Suggest which ones to archive and which to keep.',
+            },
+          },
+        ],
+      };
+
+    case 'save_as_private_bookmark':
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `You have access to the add_private_bookmark tool for saving content from LLMs and generated text to Instapaper.
+
+WHEN TO USE add_private_bookmark:
+- Saving AI-generated content (summaries, analyses, notes you create)
+- Saving email subscriptions or newsletters (source: "email")
+- Saving personal notes or research (source: "notebook")
+- Saving Slack messages or team communications (source: "slack")
+- Saving clipped text or snippets (source: "clipped-text")
+- Saving any URL-less content you want to preserve
+
+WHEN TO USE add_bookmark instead:
+- Saving web articles or web pages (these have URLs)
+- Saving content from websites
+- Saving any content where you have an HTTP/HTTPS URL
+
+KEY DIFFERENCES:
+- add_bookmark: Requires a URL, for web content
+- add_private_bookmark: No URL needed, for personal/generated content
+
+BEST PRACTICES FOR LLM-GENERATED CONTENT:
+1. When you create a summary, analysis, or generated text: Use add_private_bookmark to save it
+2. Set source_label to something descriptive like "generated", "summary", "notes", "analysis"
+3. Include a meaningful title that describes what was generated
+4. Add a description explaining the context
+5. This creates an archived record of your AI interactions
+
+EXAMPLE USAGE:
+If you've generated a research summary, save it with:
+  - content: The full generated text/HTML
+  - title: "Research Summary: [Topic]"
+  - source_label: "generated" or "analysis"
+  - description: "Generated by AI on [date] for [purpose]"
+
+This helps you maintain a searchable archive of all your generated insights and analyses.`,
             },
           },
         ],

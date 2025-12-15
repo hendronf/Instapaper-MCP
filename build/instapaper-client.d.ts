@@ -15,6 +15,7 @@ interface Bookmark {
     hash: string;
     progress: number;
     progress_timestamp: number;
+    private_source?: string;
 }
 interface Folder {
     folder_id: number;
@@ -57,15 +58,17 @@ export declare class InstapaperClient {
      */
     getArticleText(bookmarkId: number): Promise<string>;
     /**
-     * Add a new bookmark
+     * Add a new bookmark (public or private)
+     * For private sources: leave url empty and provide content instead
      */
     addBookmark(url: string, options?: {
         title?: string;
         description?: string;
         folder_id?: number;
         resolve_final_url?: boolean;
-    }): Promise<Bookmark>;
-    /**
+        content?: string;
+        is_private_from_source?: string;
+    }): Promise<Bookmark>; /**
      * Delete a bookmark
      */
     deleteBookmark(bookmarkId: number): Promise<void>;
@@ -93,6 +96,16 @@ export declare class InstapaperClient {
      * Update reading progress
      */
     updateReadProgress(bookmarkId: number, progress: number, timestamp?: number): Promise<Bookmark>;
+    /**
+     * Add a private bookmark from HTML content
+     * Use this for content that doesn't have a URL (emails, notebooks, etc)
+     */
+    addPrivateBookmark(content: string, options: {
+        title?: string;
+        description?: string;
+        folder_id?: number;
+        source_label: string;
+    }): Promise<Bookmark>;
     /**
      * List all folders
      */
