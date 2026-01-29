@@ -372,30 +372,6 @@ Claude will use the `instapaper://article/{bookmark_id}` resource to access the 
 
 All bulk operations execute requests in parallel for maximum efficiency and return detailed results including success count, failure count, and per-item status.
 
-## Integration Ideas
-
-### With Your Ghost Blog
-
-Since you run a blog, you could:
-1. Research articles from Instapaper
-2. Have Claude synthesize insights
-3. Draft blog posts informed by your reading
-4. Save drafts back to Instapaper for review on Kindle
-
-### For UX Research
-
-1. Save research articles to specific folders
-2. Use prompts to synthesize findings
-3. Track reading progress on long reports
-4. Highlight key insights for later reference
-
-
-## Security Notes
-
-- Your `.env` file contains sensitive credentials - never commit it to git
-- The `.gitignore` file is configured to exclude `.env`
-- API credentials are stored locally on your machine
-- Claude Desktop launches the server locally - nothing is sent to external servers except Instapaper's official API
 
 ## License
 
