@@ -4,6 +4,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { InstapaperClient } from './instapaper-client.js';
 import * as dotenv from 'dotenv';
+import { readFileSync } from 'fs';
+import { isAbsolute } from 'path';
 // Load environment variables
 dotenv.config();
 // Validate required environment variables
@@ -171,7 +173,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     properties: {
                         content: {
                             type: 'string',
-                            description: 'HTML content of the private bookmark. Can be plain text or HTML.',
+                            description: 'HTML content of the private bookmark. Can be plain text or HTML. Provide exactly one of content or content_file.',
+                        },
+                        content_file: {
+                            type: 'string',
+                            description: 'Absolute path to a local file whose contents (HTML or plain text, UTF-8) become the bookmark body. The server reads the file itself, so large bodies never pass through the conversation. Provide exactly one of content or content_file.',
                         },
                         title: {
                             type: 'string',
@@ -190,7 +196,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                             description: 'Optional folder ID to save the bookmark in',
                         },
                     },
-                    required: ['content', 'source_label'],
+                    required: ['source_label'],
                 },
             },
             {
@@ -563,7 +569,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 };
             }
             case 'add_private_bookmark': {
-                const bookmark = await client.addPrivateBookmark(typedArgs.content, {
+                const inlineContent = typedArgs.content;
+                const contentFile = typedArgs.content_file;
+                if ((inlineContent === undefined) === (contentFile === undefined)) {
+                    throw new Error('Provide exactly one of content or content_file');
+                }
+                let content;
+                if (contentFile !== undefined) {
+                    if (!isAbsolute(contentFile)) {
+                        throw new Error(`content_file must be an absolute path, got: ${contentFile}`);
+                    }
+                    content = readFileSync(contentFile, 'utf8');
+                }
+                else {
+                    content = inlineContent;
+                }
+                const bookmark = await client.addPrivateBookmark(content, {
                     title: typedArgs.title,
                     description: typedArgs.description,
                     source_label: typedArgs.source_label,
