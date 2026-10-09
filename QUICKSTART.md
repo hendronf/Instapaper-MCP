@@ -6,7 +6,9 @@ Get up and running with the Instapaper MCP Server in 5 minutes.
 
 - Node.js 18+ installed
 - Instapaper account
-- Instapaper API credentials (request at https://www.instapaper.com/api)
+- An Instapaper personal access token:
+  1. Sign in and register an app at https://www.instapaper.com/developers/applications/create (created instantly)
+  2. On the app's page, click **Generate access token** and copy it (shown only once)
 
 ## Installation
 
@@ -17,9 +19,9 @@ cd instapaper-mcp-server
 # 2. Install dependencies
 npm install
 
-# 3. Create and configure your .env file
+# 3. Create your .env file and set INSTAPAPER_ACCESS_TOKEN
 cp .env.example .env
-# Edit .env with your API credentials
+chmod 600 .env
 
 # 4. Build the server
 npm run build
@@ -38,21 +40,25 @@ Add this configuration (replace the path with your actual path):
   "mcpServers": {
     "instapaper": {
       "command": "node",
-      "args": ["/FULL/PATH/TO/instapaper-mcp-server/build/index.js"],
-      "env": {
-        "INSTAPAPER_CONSUMER_KEY": "your_key",
-        "INSTAPAPER_CONSUMER_SECRET": "your_secret",
-        "INSTAPAPER_USERNAME": "your_email",
-        "INSTAPAPER_PASSWORD": "your_password"
-      }
+      "args": ["/FULL/PATH/TO/instapaper-mcp-server/build/index.js"]
     }
   }
 }
 ```
 
+The server reads the token from the project's `.env`, so it doesn't need to be in this config.
+
 ## Restart Claude Desktop
 
 Completely quit and reopen Claude Desktop.
+
+## Or: Claude Code
+
+```bash
+claude mcp add -s user instapaper -- node /FULL/PATH/TO/instapaper-mcp-server/build/index.js
+```
+
+Then start a new Claude Code session.
 
 ## Test It Out
 
@@ -74,13 +80,12 @@ Description: Notes from my research"
 
 **Server not connecting?**
 - Verify the path in config is absolute (starts with `/` on Mac/Linux)
-- Check `.env` file has correct credentials
+- Check `.env` has `INSTAPAPER_ACCESS_TOKEN`
 - Run `npm run build` to ensure it compiled successfully
 
-**Authentication failing?**
-- Confirm you have API access from Instapaper
-- Double-check username and password in `.env`
-- Ensure consumer key/secret are correct
+**Authentication failing (401/403)?**
+- Double-check the token in `.env`
+- If it was lost or revoked, generate a new one on your app's page at https://www.instapaper.com/developers/applications
 
 **Tools not appearing?**
 - Restart Claude Desktop completely
@@ -93,11 +98,12 @@ Description: Notes from my research"
 - Add bookmarks with descriptions
 - Create folders and organize articles
 - Star important articles
+- Tag articles, rename and merge tags
 - Track reading progress
 
 ### Read & Research
-- Access full article text
-- Search across your library
+- Access full article text, with author and publication date
+- Search across your whole library
 - Get reading recommendations
 - Synthesize research on topics
 

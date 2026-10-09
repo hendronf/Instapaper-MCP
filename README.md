@@ -10,7 +10,8 @@ Buy me a coffee: https://cmdzed.com/#/portal/support
 ### 🛠️ Tools (Actions)
 
 **Content Management:**
-- `add_bookmark` - Save articles with title, description, and folder
+- `add_bookmark` - Save articles with title, description, folder and tags, optionally straight to the archive or without resolving redirects
+- `update_bookmark` - Edit an article's title and/or description
 - `add_private_bookmark` - Save private content without URLs (emails, notes, generated content)
 - `delete_bookmark` - Remove articles
 - `archive_bookmark` - Move articles to archive
@@ -20,7 +21,7 @@ Buy me a coffee: https://cmdzed.com/#/portal/support
 - `move_bookmark` - Organize into folders
 - `update_read_progress` - Track reading progress
 
-**Bulk Operations (Parallel Processing):**
+**Bulk Operations (Parallel, Rate-Limit Aware):**
 - `move_bookmarks_bulk` - Move multiple bookmarks to a folder at once
 - `star_bookmarks_bulk` - Star multiple bookmarks in parallel
 - `unstar_bookmarks_bulk` - Remove stars from multiple bookmarks
@@ -34,18 +35,27 @@ Buy me a coffee: https://cmdzed.com/#/portal/support
 - `delete_folder` - Remove folders
 - `reorder_folders` - Customize folder order
 
+**Tag Management:**
+- `list_tags` - View all tags with how many articles carry each
+- `create_tag` - Create a new tag
+- `rename_tag` - Rename a tag (e.g. fix a typo); articles keep it
+- `tag_bookmark` - Add/remove tags on one article, by name (missing tags are created)
+- `tag_bookmarks_bulk` - Add/remove the same tags on many articles; also how you merge two tags
+
+The Instapaper API cannot delete tags. To merge tag A into B, use `tag_bookmarks_bulk` to add B and remove A, then delete the empty tag A in the Instapaper app.
+
 **Highlights:**
-- `add_highlight` - Save important passages
+- `add_highlight` - Save a passage, optionally with a note
 - `list_highlights` - View highlights for an article
 - `delete_highlight` - Remove highlights
 
 **Search & Discovery:**
-- `list_bookmarks` - List articles from folders with sync support
-- `search_bookmarks` - Find articles by title, URL, or description
+- `list_bookmarks` - List a section (unread, archive, starred, a folder) or a tag, with the real total, `offset` paging, and `since` sync (including deleted IDs)
+- `search_bookmarks` - Search the whole account by keyword: all words must match the title, URL, description, author or tags; optional folder/tag filter
 
 **Content Access:**
-- `get_article_content` - Fetch full text of a single article
-- `get_articles_content_bulk` - Fetch content from multiple articles at once for bulk analysis
+- `get_article_content` - Full text of an article as clean plain text, with title, author, publication date, word count and paywall flag
+- `get_articles_content_bulk` - The same for multiple articles at once
 
 ### 📚 Resources (Data Claude Can Read)
 
@@ -70,14 +80,15 @@ Buy me a coffee: https://cmdzed.com/#/portal/support
 ### Prerequisites
 
 1. **Node.js 18+** installed on your system
-2. **Instapaper account** with API credentials
+2. **Instapaper account** (highlights beyond 5 per month need Instapaper Premium)
 
-### Step 1: Get Instapaper API Credentials
+This server uses the [Instapaper API v2](https://www.instapaper.com/developers) with a personal access token. Your Instapaper password is never needed.
 
-1. Go to https://www.instapaper.com/api
-2. Fill out the API access request form
-3. Wait for approval (usually takes a few days)
-4. You'll receive a Consumer Key and Consumer Secret
+### Step 1: Get a Personal Access Token
+
+1. Sign in at https://www.instapaper.com/developers/applications/create
+2. Register an application (title, description, URL and contact email; callback URIs can stay empty) and accept the API Terms of Use. It is created instantly, as "Owner Only".
+3. On the application's page, click **Generate access token** and copy it. It is shown only once.
 
 ### Step 2: Clone and Install
 
@@ -92,16 +103,15 @@ npm install
 cp .env.example .env
 ```
 
-### Step 3: Configure Environment Variables
+### Step 3: Add Your Token
 
-Edit `.env` and add your credentials:
+Edit `.env`:
 
 ```env
-INSTAPAPER_CONSUMER_KEY=your_consumer_key_here
-INSTAPAPER_CONSUMER_SECRET=your_consumer_secret_here
-INSTAPAPER_USERNAME=your_instapaper_email@example.com
-INSTAPAPER_PASSWORD=your_instapaper_password
+INSTAPAPER_ACCESS_TOKEN=your_access_token_here
 ```
+
+The server reads this `.env` from the project directory no matter where it is launched from, so MCP clients don't need the token in their own config. Keep the file private (`chmod 600 .env`).
 
 ### Step 4: Build the Server
 
@@ -123,23 +133,29 @@ Add this to your Claude Desktop configuration file:
   "mcpServers": {
     "instapaper": {
       "command": "node",
-      "args": ["/absolute/path/to/instapaper-mcp-server/build/index.js"],
-      "env": {
-        "INSTAPAPER_CONSUMER_KEY": "your_consumer_key",
-        "INSTAPAPER_CONSUMER_SECRET": "your_consumer_secret",
-        "INSTAPAPER_USERNAME": "your_email",
-        "INSTAPAPER_PASSWORD": "your_password"
-      }
+      "args": ["/absolute/path/to/instapaper-mcp-server/build/index.js"]
     }
   }
 }
 ```
 
-**Important:** Replace `/absolute/path/to/instapaper-mcp-server` with the actual full path.
+**Important:** Replace `/absolute/path/to/instapaper-mcp-server` with the actual full path. If you'd rather not use `.env`, add `"env": { "INSTAPAPER_ACCESS_TOKEN": "..." }` to this entry instead.
 
 ### Restart Claude Desktop
 
 After updating the config, restart Claude Desktop completely (quit and reopen).
+
+## Usage with Claude Code
+
+Register the server once for all your projects:
+
+```bash
+claude mcp add -s user instapaper -- node /absolute/path/to/instapaper-mcp-server/build/index.js
+```
+
+Check it with `claude mcp get instapaper`, then start a new Claude Code session. The tools appear as `mcp__instapaper__*`.
+
+The server runs locally, so it works in Claude Desktop and Claude Code on that computer, but not in claude.ai on the web or mobile.
 
 ## Example Usage
 
@@ -303,10 +319,10 @@ instapaper-mcp-server/
 
 ### Authentication Errors
 
-If you see authentication errors:
-1. Verify your credentials in `.env`
-2. Ensure you have API access (check your Instapaper email)
-3. Try re-authenticating by restarting Claude Desktop
+If the server logs `Missing required environment variable: INSTAPAPER_ACCESS_TOKEN` or an API error 401/403:
+1. Check `INSTAPAPER_ACCESS_TOKEN` in `.env` (or in the client's `env` block)
+2. If the token was lost or revoked, generate a new one on your application's page at https://www.instapaper.com/developers/applications
+3. Restart Claude Desktop / start a new Claude Code session
 
 ### Tools Not Showing Up
 
@@ -316,10 +332,12 @@ If you see authentication errors:
 
 ### API Rate Limits
 
-Instapaper has rate limits. If you hit them:
-- Wait a few minutes before trying again
-- Reduce the frequency of requests
-- Use resources (reading data) instead of tools when possible
+Instapaper has rate limits. The client handles them for you:
+- At most 4 API requests run at once, even when a bulk tool processes hundreds of articles
+- A `429 Too Many Requests` is retried after the server's `Retry-After` delay (or 1s, 2s, 4s, 8s), up to 4 times
+- Server errors (5xx) and network failures are retried only for reads, so a write is never applied twice
+
+If errors persist, wait a few minutes and try again.
 
 ## Advanced Features
 
@@ -340,7 +358,7 @@ Claude will use the `instapaper://article/{bookmark_id}` resource to access the 
 ### Highlight Management
 
 ```
-"Add a highlight to bookmark 12345: 'Users prefer familiar patterns over novel ones' at position 1000"
+"Highlight 'Users prefer familiar patterns over novel ones' in bookmark 12345, with the note 'use in the design review'"
 
 "Show me all my highlights from the article about design systems"
 ```
@@ -370,7 +388,16 @@ Claude will use the `instapaper://article/{bookmark_id}` resource to access the 
 "Unarchive my last 10 archived articles"
 ```
 
-All bulk operations execute requests in parallel for maximum efficiency and return detailed results including success count, failure count, and per-item status.
+**Tagging:**
+```
+"Tag every article about Clojure or Datomic with 'clojure'"
+
+"Rename the tag 'artificial inteligence' to 'artificial intelligence'"
+
+"Merge the tag 'chat gpt' into 'llm'"
+```
+
+All bulk operations run in parallel (up to 4 requests at a time) and return detailed results including success count, failure count, and per-item status.
 
 
 ## License
@@ -383,13 +410,25 @@ Contributions welcome! Please feel free to submit issues or pull requests.
 
 ## Resources
 
-- [Instapaper API Documentation](https://www.instapaper.com/api)
+- [Instapaper API v2 Documentation](https://www.instapaper.com/developers)
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 - [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 
 ## Changelog
 
-### v1.2.0 (Latest)
+### v2.0.0 (Latest)
+- Moved to the Instapaper API v2 with a personal access token (`INSTAPAPER_ACCESS_TOKEN`); consumer key, username and password are no longer used
+- Added tag management: `list_tags`, `create_tag`, `rename_tag`, `tag_bookmark`, `tag_bookmarks_bulk`, and a `tag` filter on `list_bookmarks`
+- `list_bookmarks`: real section total, `offset`/`next_offset` paging, `since` sync with deleted IDs (the v1-only `have` parameter is gone)
+- `search_bookmarks`: searches the whole account (title, URL, description, author, tags), all words must match, optional folder/tag filter
+- `get_article_content` and `get_articles_content_bulk`: clean plain text plus title, author, publication date, word count and paywall flag
+- New `update_bookmark` tool to edit an article's title and description
+- `add_bookmark`: new `tags`, `archived` and `resolve_final_url` options
+- `add_highlight`: `position` is now the optional occurrence index (it was wrongly documented as a character offset); new `note` parameter
+- API requests are capped at 4 concurrent, with automatic retry on rate limits
+- `.env` is loaded from the project directory regardless of the launch directory
+
+### v1.2.0
 - Added 5 new bulk operation tools with parallel processing:
   - `star_bookmarks_bulk` - Star multiple bookmarks at once
   - `unstar_bookmarks_bulk` - Remove stars from multiple bookmarks

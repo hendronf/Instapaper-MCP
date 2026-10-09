@@ -206,10 +206,18 @@ Real-world examples of using the Instapaper MCP Server with Claude.
 ### Add Research Notes
 
 **You:**
-> I just read an important insight in bookmark 123456. Add this highlight at position 2500: "Users abandon onboarding when they don't see immediate value"
+> I just read an important insight in bookmark 123456. Highlight "Users abandon onboarding when they don't see immediate value" and add the note "cite in Q3 onboarding proposal"
 
 **Claude:**
-> Highlight added! This insight has been saved to the article "Mobile Onboarding Patterns". You can review all your highlights from this article anytime.
+> Highlight added with your note! This insight has been saved to the article "Mobile Onboarding Patterns". You can review all your highlights from this article anytime.
+
+### Tag a Batch of Articles
+
+**You:**
+> Find everything I've saved about Datomic and tag it "clojure"
+
+**Claude:**
+> Found 9 articles mentioning Datomic across your unread list and archive. 7 already had "clojure"; I added it to the other 2.
 
 ### Review Your Highlights
 

@@ -4,26 +4,20 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { InstapaperClient } from './instapaper-client.js';
 import * as dotenv from 'dotenv';
-// Load environment variables
-dotenv.config();
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+// Load environment variables from the project's .env, whatever directory the
+// MCP client launches the server from (variables already set take precedence)
+dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../.env') });
 // Validate required environment variables
-const requiredEnvVars = [
-    'INSTAPAPER_CONSUMER_KEY',
-    'INSTAPAPER_CONSUMER_SECRET',
-    'INSTAPAPER_USERNAME',
-    'INSTAPAPER_PASSWORD',
-];
-for (const envVar of requiredEnvVars) {
-    if (!process.env[envVar]) {
-        throw new Error(`Missing required environment variable: ${envVar}`);
-    }
+// INSTAPAPER_ACCESS_TOKEN: personal access token from your application's page
+// at https://www.instapaper.com/developers/applications
+if (!process.env.INSTAPAPER_ACCESS_TOKEN) {
+    throw new Error('Missing required environment variable: INSTAPAPER_ACCESS_TOKEN');
 }
 // Initialize Instapaper client
 const client = new InstapaperClient({
-    consumerKey: process.env.INSTAPAPER_CONSUMER_KEY,
-    consumerSecret: process.env.INSTAPAPER_CONSUMER_SECRET,
-    username: process.env.INSTAPAPER_USERNAME,
-    password: process.env.INSTAPAPER_PASSWORD,
+    accessToken: process.env.INSTAPAPER_ACCESS_TOKEN,
 });
 // Create MCP server
 const server = new Server({
@@ -46,7 +40,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             // ========== DISCOVERY & READING (Most Frequently Used) ==========
             {
                 name: 'list_bookmarks',
-                description: 'List bookmarks from a specific folder or search results. Retrieve unread, archived, or starred articles with optional limit. This is the primary way to browse your reading list. Supports filtering by folder, limit, and sync parameters for efficient bulk data retrieval.',
+                description: 'List bookmarks from a section (unread, archive, starred, a folder) or a tag, newest first. Returns one page plus the section\'s real total and next_offset; call again with offset to page through. With since, returns everything changed since that time across all sections, plus deleted_ids, for syncing. To find articles by topic or keyword across the whole account, use search_bookmarks instead.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -54,15 +48,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                             type: 'string',
                             description: 'Folder to list from: "unread" (default), "archive", "starred", or a folder_id',
                         },
+                        tag: {
+                            type: 'string',
+                            description: 'Optional: list bookmarks carrying this tag name (across all sections). Overrides folder.',
+                        },
                         limit: {
                             type: 'number',
                             description: 'Maximum number of bookmarks to return (1-500, default 25)',
                             minimum: 1,
                             maximum: 500,
                         },
-                        have: {
-                            type: 'string',
-                            description: 'Optional: comma-separated bookmark IDs you already have for sync optimization',
+                        offset: {
+                            type: 'number',
+                            description: 'Number of bookmarks to skip, for paging (default 0). Use next_offset from the previous call.',
+                            minimum: 0,
+                        },
+                        since: {
+                            type: 'number',
+                            description: 'Optional Unix timestamp: return everything changed since then, across all sections (folder and tag are ignored), plus deleted_ids',
+                            minimum: 1,
                         },
                     },
                     required: [],
@@ -70,17 +74,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'search_bookmarks',
-                description: 'Find bookmarks by searching through titles, URLs, and descriptions. Supports optional filtering by folder (use "unread", "archive", "starred", or a specific folder_id) and result limits. Useful for discovering articles on specific topics or finding previously saved content.',
+                description: 'Search the whole account (unread, archive, liked and every folder) by keyword. Matches bookmarks whose title, URL, description, author or tags contain every word of the query (case-insensitive), newest first. Optionally narrow to a folder or a tag. Returns total_matches plus up to limit results. Searches saved metadata, not the full article text.',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         query: {
                             type: 'string',
-                            description: 'Search query',
+                            description: 'Search words; all must match',
                         },
                         folder: {
                             type: 'string',
-                            description: 'Optional folder to search in (unread, archive, starred, or folder_id)',
+                            description: 'Optional: only search "unread", "archive", "starred", or a folder_id',
+                        },
+                        tag: {
+                            type: 'string',
+                            description: 'Optional: only search bookmarks carrying this tag name',
                         },
                         limit: {
                             type: 'number',
@@ -93,7 +101,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'get_article_content',
-                description: 'Retrieve the complete text content of a single article. Use this to analyze, summarize, or process the full article text. Requires a bookmark ID. Returns the article as plain text.',
+                description: 'Retrieve the complete text of a single article, as clean plain text, with its metadata (title, author, publication date, word count, whether it looks paywalled). Use this to analyze, summarize, or process the full article. Requires a bookmark ID.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -107,7 +115,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'get_articles_content_bulk',
-                description: 'Fetch the complete text of multiple articles simultaneously for efficient bulk analysis. Provide an array of bookmark IDs. Articles are retrieved in parallel for best performance. Each article is returned with its ID, content, or error status. Ideal for synthesizing information across multiple sources, comparing perspectives, or comprehensive research analysis.',
+                description: 'Fetch the complete text of multiple articles simultaneously for efficient bulk analysis. Provide an array of bookmark IDs. Articles are retrieved in parallel for best performance. Each article is returned as plain text with its metadata (title, author, publication date, word count), or with an error. Ideal for synthesizing information across multiple sources, comparing perspectives, or comprehensive research analysis.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -139,7 +147,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             // ========== QUICK ACTIONS (Frequently Used) ==========
             {
                 name: 'add_bookmark',
-                description: 'Save an article or web page to Instapaper. Use this when the user wants to save a URL for later reading. Returns the bookmark ID, title, and URL. You can optionally provide a title, description/notes, and a folder ID to organize the article.',
+                description: 'Save an article or web page to Instapaper. Use this when the user wants to save a URL for later reading. Optionally set a title, description/notes, folder, tags, or save it straight to the archive. Saving a URL that is already saved does not create a duplicate: the existing bookmark is updated with what you send and moved back to the top. Returns the bookmark ID, title, URL and tags.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -149,7 +157,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                         title: {
                             type: 'string',
-                            description: 'Optional title for the bookmark',
+                            description: 'Optional title for the bookmark. If omitted, Instapaper looks it up, which makes the call slower.',
                         },
                         description: {
                             type: 'string',
@@ -158,6 +166,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         folder_id: {
                             type: 'number',
                             description: 'Optional folder ID to save the bookmark in',
+                        },
+                        tags: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Optional tag names to apply; tags that do not exist yet are created',
+                        },
+                        archived: {
+                            type: 'boolean',
+                            description: 'Save straight to the archive instead of the unread list (default false)',
+                        },
+                        resolve_final_url: {
+                            type: 'boolean',
+                            description: 'Follow redirects and canonicalize the URL before saving (default true). Set false to save the URL exactly as given.',
                         },
                     },
                     required: ['url'],
@@ -444,10 +465,100 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     required: ['folder_order'],
                 },
             },
+            // ========== TAG MANAGEMENT ==========
+            {
+                name: 'list_tags',
+                description: 'Retrieve all tags in your Instapaper account with how many bookmarks carry each one. Use this before tagging so you reuse existing tag names instead of creating near-duplicates.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                },
+            },
+            {
+                name: 'create_tag',
+                description: 'Create a new tag. Not required before tagging: tag_bookmark and tag_bookmarks_bulk create missing tags automatically.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        name: {
+                            type: 'string',
+                            description: 'Name of the tag to create',
+                        },
+                    },
+                    required: ['name'],
+                },
+            },
+            {
+                name: 'rename_tag',
+                description: 'Rename an existing tag, e.g. to fix a typo. Every bookmark carrying it keeps it. Fails if the new name is already taken. Note: the Instapaper API cannot delete tags; to merge two tags, use tag_bookmarks_bulk to add the target and remove the source, then delete the empty tag in the Instapaper app.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        tag_id: {
+                            type: 'number',
+                            description: 'ID of the tag to rename (from list_tags)',
+                        },
+                        name: {
+                            type: 'string',
+                            description: 'New name for the tag',
+                        },
+                    },
+                    required: ['tag_id', 'name'],
+                },
+            },
+            {
+                name: 'tag_bookmark',
+                description: 'Add and/or remove tags on a single bookmark, by tag name. Tags to add that do not exist yet are created. Returns the bookmark\'s full tag list afterwards.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        bookmark_id: {
+                            type: 'number',
+                            description: 'ID of the bookmark',
+                        },
+                        add_tags: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Tag names to add',
+                        },
+                        remove_tags: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Tag names to remove (case-insensitive; unknown names are ignored)',
+                        },
+                    },
+                    required: ['bookmark_id'],
+                },
+            },
+            {
+                name: 'tag_bookmarks_bulk',
+                description: 'Add and/or remove the same tags on multiple bookmarks at once, by tag name. Use this to tag a batch of articles on one topic, or to merge one tag into another (add the target, remove the source).',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        bookmark_ids: {
+                            type: 'array',
+                            items: { type: 'number' },
+                            description: 'Array of bookmark IDs to update',
+                        },
+                        add_tags: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Tag names to add',
+                        },
+                        remove_tags: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Tag names to remove (case-insensitive; unknown names are ignored)',
+                        },
+                    },
+                    required: ['bookmark_ids'],
+                },
+            },
             // ========== HIGHLIGHTS MANAGEMENT ==========
             {
                 name: 'add_highlight',
-                description: 'Add a highlight (excerpt) to an article. Specify the text to highlight and its position in the article. Use this to mark important passages, quotes, or key insights for later reference.',
+                description: 'Add a highlight (excerpt) to an article, optionally with a note. The text must appear verbatim in the article (copy it from get_article_content). Use this to mark important passages, quotes, or key insights for later reference. Accounts without Instapaper Premium are limited to 5 highlights per month.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -457,14 +568,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                         text: {
                             type: 'string',
-                            description: 'Text to highlight',
+                            description: 'Exact passage to highlight, as it appears in the article',
                         },
                         position: {
                             type: 'number',
-                            description: 'Position in the article (character offset)',
+                            description: 'Which occurrence of the text to highlight, counting from 0 (default 0, the first). Only needed when the same text appears more than once.',
+                            minimum: 0,
+                        },
+                        note: {
+                            type: 'string',
+                            description: 'Optional note to attach to the highlight',
                         },
                     },
-                    required: ['bookmark_id', 'text', 'position'],
+                    required: ['bookmark_id', 'text'],
                 },
             },
             {
@@ -503,6 +619,28 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 },
             },
             {
+                name: 'update_bookmark',
+                description: 'Edit the title and/or description of a saved bookmark, e.g. to fix a bad title or add notes. To change tags use tag_bookmark; to change reading progress use update_read_progress.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        bookmark_id: {
+                            type: 'number',
+                            description: 'ID of the bookmark',
+                        },
+                        title: {
+                            type: 'string',
+                            description: 'New title',
+                        },
+                        description: {
+                            type: 'string',
+                            description: 'New description or notes',
+                        },
+                    },
+                    required: ['bookmark_id'],
+                },
+            },
+            {
                 name: 'delete_bookmark',
                 description: 'Permanently remove a bookmark from Instapaper. This action cannot be undone. Use this when the user wants to delete an article they no longer need.',
                 inputSchema: {
@@ -525,18 +663,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const typedArgs = args;
         switch (name) {
             case 'list_bookmarks': {
-                const bookmarks = await client.listBookmarks({
+                const offset = typedArgs.offset || 0;
+                const page = await client.listBookmarksPage({
                     folder: typedArgs.folder,
+                    tag: typedArgs.tag,
                     limit: typedArgs.limit || 25,
-                    have: typedArgs.have,
+                    offset,
+                    since: typedArgs.since,
                 });
+                const received = page.bookmarks.length + (page.deleted_ids?.length ?? 0);
                 return {
                     content: [
                         {
                             type: 'text',
                             text: JSON.stringify({
-                                total: bookmarks.length,
-                                bookmarks,
+                                total: page.total,
+                                returned: page.bookmarks.length,
+                                offset,
+                                next_offset: offset + received < page.total ? offset + received : null,
+                                ...(page.deleted_ids ? { deleted_ids: page.deleted_ids } : {}),
+                                bookmarks: page.bookmarks,
                             }, null, 2),
                         },
                     ],
@@ -547,6 +693,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     title: typedArgs.title,
                     description: typedArgs.description,
                     folder_id: typedArgs.folder_id,
+                    tags: typedArgs.tags,
+                    archived: typedArgs.archived,
+                    resolve_final_url: typedArgs.resolve_final_url,
                 });
                 return {
                     content: [
@@ -557,6 +706,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                 bookmark_id: bookmark.bookmark_id,
                                 title: bookmark.title,
                                 url: bookmark.url,
+                                tags: bookmark.tags,
+                                archived: bookmark.archived,
+                            }, null, 2),
+                        },
+                    ],
+                };
+            }
+            case 'update_bookmark': {
+                const bookmark = await client.updateBookmark(typedArgs.bookmark_id, {
+                    title: typedArgs.title,
+                    description: typedArgs.description,
+                });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                success: true,
+                                bookmark_id: bookmark.bookmark_id,
+                                title: bookmark.title,
+                                description: bookmark.description,
                             }, null, 2),
                         },
                     ],
@@ -890,8 +1060,89 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     ],
                 };
             }
+            case 'list_tags': {
+                const tags = await client.listTags();
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({ tags }, null, 2),
+                        },
+                    ],
+                };
+            }
+            case 'create_tag': {
+                const tag = await client.createTag(typedArgs.name);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({ success: true, tag }, null, 2),
+                        },
+                    ],
+                };
+            }
+            case 'rename_tag': {
+                const tag = await client.renameTag(typedArgs.tag_id, typedArgs.name);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({ success: true, tag }, null, 2),
+                        },
+                    ],
+                };
+            }
+            case 'tag_bookmark': {
+                const result = await client.updateBookmarkTags(typedArgs.bookmark_id, {
+                    add: typedArgs.add_tags,
+                    remove: typedArgs.remove_tags,
+                });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({ success: true, bookmark_id: typedArgs.bookmark_id, ...result }, null, 2),
+                        },
+                    ],
+                };
+            }
+            case 'tag_bookmarks_bulk': {
+                const bookmarkIds = typedArgs.bookmark_ids;
+                const changes = {
+                    add: typedArgs.add_tags,
+                    remove: typedArgs.remove_tags,
+                };
+                const knownTags = changes.remove?.length ? await client.listTags() : undefined;
+                const results = {};
+                // Sequential so a new tag is created once, not raced by parallel requests
+                for (const id of bookmarkIds) {
+                    try {
+                        const { tags } = await client.updateBookmarkTags(id, changes, knownTags);
+                        results[id] = { tags };
+                    }
+                    catch (error) {
+                        results[id] = {
+                            error: error instanceof Error ? error.message : 'Unknown error',
+                        };
+                    }
+                }
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                total: bookmarkIds.length,
+                                updated: Object.values(results).filter((r) => 'tags' in r).length,
+                                failed: Object.values(results).filter((r) => 'error' in r).length,
+                                results,
+                            }, null, 2),
+                        },
+                    ],
+                };
+            }
             case 'add_highlight': {
-                const highlight = await client.addHighlight(typedArgs.bookmark_id, typedArgs.text, typedArgs.position);
+                const highlight = await client.addHighlight(typedArgs.bookmark_id, typedArgs.text, typedArgs.position ?? 0, typedArgs.note);
                 return {
                     content: [
                         {
@@ -924,35 +1175,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 };
             }
             case 'search_bookmarks': {
-                const bookmarks = await client.listBookmarks({
-                    folder: typedArgs.folder,
-                    limit: typedArgs.limit || 25,
-                });
-                // Simple client-side search (Instapaper API doesn't have built-in search)
-                const query = typedArgs.query.toLowerCase();
-                const filtered = bookmarks.filter((b) => b.title.toLowerCase().includes(query) ||
-                    b.url.toLowerCase().includes(query) ||
-                    (b.description && b.description.toLowerCase().includes(query)));
+                // The API has no search endpoint, so scan the whole account client-side
+                const words = typedArgs.query.toLowerCase().split(/\s+/).filter(Boolean);
+                const folder = typedArgs.folder;
+                const tag = typedArgs.tag?.trim().toLowerCase();
+                const limit = typedArgs.limit || 25;
+                const inFolder = (b) => {
+                    if (!folder)
+                        return true;
+                    if (folder === 'unread' || folder === 'home')
+                        return !b.archived && b.folder_id === null;
+                    if (folder === 'archive')
+                        return b.archived;
+                    if (folder === 'starred' || folder === 'liked')
+                        return b.starred === '1';
+                    return b.folder_id === Number(folder);
+                };
+                const matches = (await client.listAllBookmarks())
+                    .filter(inFolder)
+                    .filter((b) => !tag || b.tags.some((t) => t.trim().toLowerCase() === tag))
+                    .filter((b) => {
+                    const haystack = [b.title, b.url, b.description, b.author ?? '', ...b.tags].join(' ').toLowerCase();
+                    return words.every((w) => haystack.includes(w));
+                })
+                    .sort((a, b) => b.time - a.time);
                 return {
                     content: [
                         {
                             type: 'text',
                             text: JSON.stringify({
                                 query: typedArgs.query,
-                                results: filtered.length,
-                                bookmarks: filtered,
+                                total_matches: matches.length,
+                                returned: Math.min(matches.length, limit),
+                                bookmarks: matches.slice(0, limit),
                             }, null, 2),
                         },
                     ],
                 };
             }
             case 'get_article_content': {
-                const content = await client.getArticleText(typedArgs.bookmark_id);
+                const { text, ...metadata } = await client.getArticle(typedArgs.bookmark_id);
                 return {
                     content: [
                         {
                             type: 'text',
-                            text: content,
+                            text: `${JSON.stringify(metadata, null, 2)}\n\n${text}`,
                         },
                     ],
                 };
@@ -963,8 +1230,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 // Fetch articles in parallel for better performance
                 const promises = bookmarkIds.map(async (id) => {
                     try {
-                        const content = await client.getArticleText(id);
-                        results[id] = { content };
+                        results[id] = await client.getArticle(id);
                     }
                     catch (error) {
                         results[id] = {
@@ -979,7 +1245,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             type: 'text',
                             text: JSON.stringify({
                                 total: bookmarkIds.length,
-                                fetched: Object.values(results).filter((r) => 'content' in r).length,
+                                fetched: Object.values(results).filter((r) => 'text' in r).length,
                                 failed: Object.values(results).filter((r) => 'error' in r).length,
                                 articles: results,
                             }, null, 2),
